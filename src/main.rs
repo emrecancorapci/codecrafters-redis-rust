@@ -6,13 +6,29 @@ use tokio::{
 #[tokio::main]
 async fn main() {
     let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
+    let thread_pool = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_all()
+        .build()
+        .unwrap();
 
-    while let Ok((ref mut stream, ip)) = listener.accept().await {
+    loop {
+        let (mut stream, ip) = listener.accept().await.unwrap();
+
         println!("Connection from: {}", ip);
 
-        let _ = handler(stream).await;
+        thread_pool.spawn(async move {
+            let result = handler(&mut stream).await;
 
-        println!("Connection closed from: {}", ip);
+            if let Err(e) = result {
+                if e.kind() != std::io::ErrorKind::BrokenPipe {
+                    eprintln!("Error: {}", e);
+                    println!("Connection closed from: {}", ip);
+                } else {
+                    eprintln!("Error: {}", e);
+                }
+            }
+        });
     }
 }
 
