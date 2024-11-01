@@ -3,6 +3,8 @@ use tokio::{
     net::{TcpListener, TcpStream},
 };
 
+mod respv2;
+
 #[tokio::main]
 async fn main() {
     let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
@@ -39,12 +41,15 @@ async fn handler(stream: &mut TcpStream) -> Result<(), std::io::Error> {
 
     while let Some(line) = lines.next_line().await? {
         let answer = match line.to_uppercase().as_str() {
-            "PING" => "+PONG\r\n",
+            "PING" => String::from("+PONG\r\n"),
             l => {
-                if l.starts_with(&['*', '$']) {
-                    ""
+                if l.starts_with("ECHO") {
+                    let echo = lines.next_line().await?.unwrap();
+                    format!("${}\r\n{}\r\n", echo.len(), echo)
+                } else if l.starts_with(&['*', '$']) {
+                    String::from("")
                 } else {
-                    "-ERR unknown command\r\n"
+                    String::from("-ERR unknown command\r\n")
                 }
             }
         };
