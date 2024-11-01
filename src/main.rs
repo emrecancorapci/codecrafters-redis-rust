@@ -22,7 +22,7 @@ async fn handler(stream: &mut TcpStream) {
     }
 
     let received = String::from_utf8_lossy(&buffer[..length.unwrap()]).to_string();
-    
+
     let mut lines = received.lines();
 
     while let Some(line) = lines.next() {
@@ -30,14 +30,14 @@ async fn handler(stream: &mut TcpStream) {
             "PING" => "+PONG\r\n",
             l => {
                 if l.starts_with(&['*', '$']) {
-                    continue;
+                    ""
                 } else {
                     "-ERR unknown command\r\n"
                 }
             }
         };
 
-        if answer.len() == 0 {
+        if answer.is_empty() {
             continue;
         }
 
