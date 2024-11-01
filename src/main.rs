@@ -1,5 +1,5 @@
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
 };
 
@@ -7,25 +7,21 @@ use tokio::{
 async fn main() {
     let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
 
-    while let Ok((ref mut stream, _)) = listener.accept().await {
-        handler(stream).await;
+    while let Ok((ref mut stream, ip)) = listener.accept().await {
+        println!("Connection from: {}", ip);
+
+        let _ = handler(stream).await;
+
+        println!("Connection closed from: {}", ip);
     }
 }
 
-async fn handler(stream: &mut TcpStream) {
-    let buffer: &mut [u8] = &mut [0; 1024];
-    let length = stream.read(buffer).await;
+async fn handler(stream: &mut TcpStream) -> Result<(), std::io::Error> {
+    let (read, mut write) = stream.split();
+    let reader = BufReader::new(read);
+    let mut lines = reader.lines();
 
-    if length.is_err() {
-        println!("Error reading from stream: {:?}", length.err());
-        return;
-    }
-
-    let received = String::from_utf8_lossy(&buffer[..length.unwrap()]).to_string();
-
-    let mut lines = received.lines();
-
-    while let Some(line) = lines.next() {
+    while let Some(line) = lines.next_line().await? {
         let answer = match line.to_uppercase().as_str() {
             "PING" => "+PONG\r\n",
             l => {
@@ -43,10 +39,7 @@ async fn handler(stream: &mut TcpStream) {
 
         println!("Answer: {}", answer);
 
-        let _ = stream.write_all(answer.as_bytes()).await;
+        let _ = write.write_all(answer.as_bytes()).await;
     }
-}
-
-fn ping<'a>() -> &'a str {
-    return "+PONG\r\n";
+    Ok(())
 }
