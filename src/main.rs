@@ -1,41 +1,50 @@
-#![allow(unused_imports)]
-use std::{
-    io::{Read, Write},
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
 
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:6379").unwrap();
+#[tokio::main]
+async fn main() {
+    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(mut _stream) => {
-                handler(&_stream);
-            }
-            Err(e) => {
-                println!("error: {}", e);
-            }
-        }
+    while let Ok((ref mut stream, _)) = listener.accept().await {
+        handler(stream).await;
     }
 }
 
-fn handler(mut stream: &TcpStream) {
+async fn handler(stream: &mut TcpStream) {
     let buffer: &mut [u8] = &mut [0; 1024];
-    let length = stream.read(buffer);
+    let length = stream.read(buffer).await;
 
     if length.is_err() {
         println!("Error reading from stream: {:?}", length.err());
         return;
     }
 
-    let recieved = String::from_utf8_lossy(&buffer[..length.unwrap()]).to_string();
+    let received = String::from_utf8_lossy(&buffer[..length.unwrap()]).to_string();
+    
+    let mut lines = received.lines();
 
-    let answer: &str = match recieved.to_uppercase().as_str() {
-        "*1\r\n$4\r\nPING\r\n" => ping(),
-        _ => "-ERR unknown command\r\n",
-    };
+    while let Some(line) = lines.next() {
+        let answer = match line.to_uppercase().as_str() {
+            "PING" => "+PONG\r\n",
+            l => {
+                if l.starts_with(&['*', '$']) {
+                    continue;
+                } else {
+                    "-ERR unknown command\r\n"
+                }
+            }
+        };
 
-    let _ = stream.write_all(answer.as_bytes());
+        if answer.len() == 0 {
+            continue;
+        }
+
+        println!("Answer: {}", answer);
+
+        let _ = stream.write_all(answer.as_bytes()).await;
+    }
 }
 
 fn ping<'a>() -> &'a str {
