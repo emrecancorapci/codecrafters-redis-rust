@@ -1,9 +1,13 @@
+use std::io::{Error, ErrorKind};
+
+use bytes::BytesMut;
+use respv2::{Parser, RESPv2Types, Serialize};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
 };
 
-mod respv2;
+pub mod respv2;
 
 #[tokio::main]
 async fn main() {
@@ -36,31 +40,72 @@ async fn main() {
 
 async fn handler(stream: &mut TcpStream) -> Result<(), std::io::Error> {
     let (read, mut write) = stream.split();
-    let reader = BufReader::new(read);
-    let mut lines = reader.lines();
+    let mut reader = BufReader::new(read);
+    let mut buffer = BytesMut::with_capacity(1000);
+    let _ = reader.read_buf(&mut buffer).await;
 
-    while let Some(line) = lines.next_line().await? {
-        let answer = match line.to_uppercase().as_str() {
-            "PING" => String::from("+PONG\r\n"),
-            l => {
-                if l.starts_with("ECHO") {
-                    let echo = lines.next_line().await?.unwrap();
-                    format!("${}\r\n{}\r\n", echo.len(), echo)
-                } else if l.starts_with(&['*', '$']) {
-                    String::from("")
-                } else {
-                    String::from("-ERR unknown command\r\n")
+    let buffer: bytes::Bytes = buffer.freeze();
+    let string = String::from_utf8(buffer.to_vec()).unwrap();
+
+    let parse_result = string.try_parse_to_respv2();
+
+    if parse_result.is_err() {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            parse_result.unwrap_err().to_string(),
+        ));
+    }
+
+    match parse_result.unwrap() {
+        RESPv2Types::Array(vec) => {
+            let mut itr = vec.iter().peekable();
+
+            while let Some(data) = itr.next() {
+                match data.as_ref() {
+                    RESPv2Types::Array(_) => todo!(),
+                    RESPv2Types::Number(_) => todo!(),
+                    RESPv2Types::String(str) => match str.to_lowercase().as_str() {
+                        "ping" => {
+                            let _ = write
+                                .write_all("PONG".serialize_to_respv2().as_bytes())
+                                .await;
+                            return Ok(());
+                        }
+                        "echo" => match itr.peek() {
+                            Some(echo) => match echo.as_ref() {
+                                RESPv2Types::String(echo) => {
+                                    let _ = write
+                                        .write_all(echo.serialize_to_respv2().as_bytes())
+                                        .await;
+                                    return Ok(());
+                                }
+                                _ => {
+                                    return Err(Error::new(
+                                        ErrorKind::InvalidData,
+                                        "Wrong use of ECHO command.",
+                                    ))
+                                }
+                            },
+                            None => {
+                                return Err(Error::new(
+                                    ErrorKind::InvalidData,
+                                    "ECHO command needs another argument: ECHO [message]",
+                                ))
+                            }
+                        },
+                        _ => {}
+                    },
+                    RESPv2Types::Bulk(_) => todo!(),
+                    RESPv2Types::Error(_) => todo!(),
+                    RESPv2Types::Null => todo!(),
                 }
             }
-        };
-
-        if answer.is_empty() {
-            continue;
         }
-
-        println!("Answer: {}", answer);
-
-        let _ = write.write_all(answer.as_bytes()).await;
+        RESPv2Types::Number(_) => todo!(),
+        RESPv2Types::String(_) => todo!(),
+        RESPv2Types::Bulk(_) => todo!(),
+        RESPv2Types::Error(_) => todo!(),
+        RESPv2Types::Null => todo!(),
     }
     Ok(())
 }
