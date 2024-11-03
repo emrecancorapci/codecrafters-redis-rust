@@ -1,5 +1,27 @@
 use super::{RESPv2Errors, RESPv2Types};
 
+pub trait Parser {
+    fn try_parse_to_respv2(&self) -> Result<RESPv2Types, RESPv2Errors>;
+}
+
+impl Parser for &str {
+    fn try_parse_to_respv2(&self) -> Result<RESPv2Types, RESPv2Errors> {
+        RESPv2Parser::parse(self.to_string())
+    }
+}
+
+impl Parser for String {
+    fn try_parse_to_respv2(&self) -> Result<RESPv2Types, RESPv2Errors> {
+        RESPv2Parser::parse(self.to_string())
+    }
+}
+
+impl Parser for &String {
+    fn try_parse_to_respv2(&self) -> Result<RESPv2Types, RESPv2Errors> {
+        RESPv2Parser::parse(self.to_string())
+    }
+}
+
 pub struct RESPv2Parser;
 
 impl RESPv2Parser {

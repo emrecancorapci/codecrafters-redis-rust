@@ -1,9 +1,9 @@
-use redis_starter_rust::respv2::{RESPv2Parser, RESPv2Types};
+use redis_starter_rust::respv2::{Parser, RESPv2Parser, RESPv2Types};
 
 #[test]
 fn test_respv2_parser_string() {
     let data = String::from("+OK\r\n");
-    let result = RESPv2Parser::parse(data).unwrap();
+    let result = data.try_parse_to_respv2().unwrap();
 
     assert_eq!(result, RESPv2Types::String(String::from("OK")));
 }
