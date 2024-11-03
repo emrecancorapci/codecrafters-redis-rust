@@ -5,6 +5,8 @@ pub enum RESPv2Types {
     Array(Vec<Box<RESPv2Types>>),
     Number(u64),
     String(String),
+    Bulk(String),
+    Error(String),
     Null,
 }
 
