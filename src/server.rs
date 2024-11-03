@@ -5,6 +5,10 @@ pub struct Redis;
 
 impl Redis {
     pub async fn handle(buffer: String) -> Result<String, Error> {
+        if buffer.is_empty() {
+            return Err(Error::new(ErrorKind::InvalidData, "Empty buffer received."));
+        }
+
         let parse_result = buffer.try_parse_to_respv2();
 
         if parse_result.is_err() {
@@ -45,7 +49,9 @@ impl Redis {
                                     ))
                                 }
                             },
-                            _ => {}
+                            _ => {
+                                return Err(Error::new(ErrorKind::InvalidData, "Invalid command."))
+                            }
                         },
                         RESPv2Types::Bulk(_) => todo!(),
                         RESPv2Types::Error(_) => todo!(),

@@ -19,21 +19,19 @@ async fn main() {
     loop {
         let (mut stream, ip) = listener.accept().await.unwrap();
 
-        println!("Connection from: {}", ip);
+        println!("Connection with: {}", ip);
 
         thread_pool.spawn(async move {
             let result = handler(&mut stream).await;
 
-            if let Err(e) = result {
+            if let Err(ref e) = result {
                 if e.kind() != std::io::ErrorKind::BrokenPipe {
+                    println!("Connection closed with: {}", ip);
+                } else {
                     stream
                         .write_all(format!("-ERR {}\r\n", e.to_string()).as_bytes())
                         .await
                         .unwrap();
-                    eprintln!("Error: {}", e);
-                    println!("Connection closed from: {}", ip);
-                } else {
-                    eprintln!("Error: {}", e);
                 }
             }
         });
@@ -41,24 +39,26 @@ async fn main() {
 }
 
 async fn handler(stream: &mut TcpStream) -> Result<(), std::io::Error> {
-    let (read, mut write) = stream.split();
-    let string = read_to_string(read).await?;
+    loop {
+        let (read, mut write) = stream.split();
+        let string = read_to_string(read).await?;
 
-    let response = server::Redis::handle(string).await?;
+        let response = server::Redis::handle(string).await?;
 
-    write.write_all(response.as_bytes()).await?;
-
-    Ok(())
+        write.write_all(response.as_bytes()).await?;
+    }
 }
 
 async fn read_to_string(read: tokio::net::tcp::ReadHalf<'_>) -> Result<String, std::io::Error> {
     let mut reader = BufReader::new(read);
-    let mut buffer = BytesMut::with_capacity(1000);
+    let mut buffer = [0; 1024];
 
-    reader.read_buf(&mut buffer).await?;
+    let length = reader.read(&mut buffer).await?;
 
-    let buffer: bytes::Bytes = buffer.freeze();
-    let string = String::from_utf8(buffer.to_vec()).unwrap();
+    let string = String::from_utf8(buffer[..length].to_vec())
+        .unwrap()
+        .trim()
+        .to_string();
 
     Ok(string)
 }
