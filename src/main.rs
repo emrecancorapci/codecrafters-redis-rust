@@ -1,13 +1,11 @@
-use std::io::{Error, ErrorKind};
-
 use bytes::BytesMut;
-use respv2::{Parser, RESPv2Types, Serialize};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
 };
 
 pub mod respv2;
+pub mod server;
 
 #[tokio::main]
 async fn main() {
@@ -28,6 +26,10 @@ async fn main() {
 
             if let Err(e) = result {
                 if e.kind() != std::io::ErrorKind::BrokenPipe {
+                    stream
+                        .write_all(format!("-ERR {}\r\n", e.to_string()).as_bytes())
+                        .await
+                        .unwrap();
                     eprintln!("Error: {}", e);
                     println!("Connection closed from: {}", ip);
                 } else {
@@ -40,72 +42,23 @@ async fn main() {
 
 async fn handler(stream: &mut TcpStream) -> Result<(), std::io::Error> {
     let (read, mut write) = stream.split();
+    let string = read_to_string(read).await?;
+
+    let response = server::Redis::handle(string).await?;
+
+    write.write_all(response.as_bytes()).await?;
+
+    Ok(())
+}
+
+async fn read_to_string(read: tokio::net::tcp::ReadHalf<'_>) -> Result<String, std::io::Error> {
     let mut reader = BufReader::new(read);
     let mut buffer = BytesMut::with_capacity(1000);
-    let _ = reader.read_buf(&mut buffer).await;
+
+    reader.read_buf(&mut buffer).await?;
 
     let buffer: bytes::Bytes = buffer.freeze();
     let string = String::from_utf8(buffer.to_vec()).unwrap();
 
-    let parse_result = string.try_parse_to_respv2();
-
-    if parse_result.is_err() {
-        return Err(Error::new(
-            ErrorKind::InvalidData,
-            parse_result.unwrap_err().to_string(),
-        ));
-    }
-
-    match parse_result.unwrap() {
-        RESPv2Types::Array(vec) => {
-            let mut itr = vec.iter().peekable();
-
-            while let Some(data) = itr.next() {
-                match data.as_ref() {
-                    RESPv2Types::Array(_) => todo!(),
-                    RESPv2Types::Number(_) => todo!(),
-                    RESPv2Types::String(str) => match str.to_lowercase().as_str() {
-                        "ping" => {
-                            let _ = write
-                                .write_all("PONG".serialize_to_respv2().as_bytes())
-                                .await;
-                            return Ok(());
-                        }
-                        "echo" => match itr.peek() {
-                            Some(echo) => match echo.as_ref() {
-                                RESPv2Types::String(echo) => {
-                                    let _ = write
-                                        .write_all(echo.serialize_to_respv2().as_bytes())
-                                        .await;
-                                    return Ok(());
-                                }
-                                _ => {
-                                    return Err(Error::new(
-                                        ErrorKind::InvalidData,
-                                        "Wrong use of ECHO command.",
-                                    ))
-                                }
-                            },
-                            None => {
-                                return Err(Error::new(
-                                    ErrorKind::InvalidData,
-                                    "ECHO command needs another argument: ECHO [message]",
-                                ))
-                            }
-                        },
-                        _ => {}
-                    },
-                    RESPv2Types::Bulk(_) => todo!(),
-                    RESPv2Types::Error(_) => todo!(),
-                    RESPv2Types::Null => todo!(),
-                }
-            }
-        }
-        RESPv2Types::Number(_) => todo!(),
-        RESPv2Types::String(_) => todo!(),
-        RESPv2Types::Bulk(_) => todo!(),
-        RESPv2Types::Error(_) => todo!(),
-        RESPv2Types::Null => todo!(),
-    }
-    Ok(())
+    Ok(string)
 }
