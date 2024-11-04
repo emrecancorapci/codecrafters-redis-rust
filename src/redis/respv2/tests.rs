@@ -1,4 +1,4 @@
-use crate::redis::respv2::{Parser, RESPv2Parser, RESPv2Type};
+use crate::redis::respv2::{Parser, RESPv2Parser, RESPv2Type, Serialize, SerializeBulk, SerializeError};
 
 #[test]
 fn respv2_parser_string() {
@@ -95,4 +95,63 @@ fn respv2_parser_invalid_command() {
     let result = RESPv2Parser::parse(data);
 
     assert!(result.is_err() && result.unwrap_err().to_string() == "InvalidCommand");
+}
+
+#[test]
+fn respv2_serializer_string() {
+    let data = String::from("OK");
+    let result = data.serialize_to_respv2();
+
+    assert_eq!(result, "+OK\r\n");
+}
+
+#[test]
+fn respv2_serializer_integer() {
+    let data = 1000;
+    let result = data.serialize_to_respv2();
+
+    assert_eq!(result, ":1000\r\n");
+}
+
+#[test]
+fn respv2_serializer_error() {
+    let data = String::from("ERR unknown command");
+    let result = data.serialize_error_to_respv2();
+
+    assert_eq!(result, "-ERR unknown command\r\n");
+}
+
+#[test]
+fn respv2_serializer_bulk_string() {
+    let data = String::from("foobar");
+    let result = data.serialize_bulk_to_respv2();
+
+    assert_eq!(result, "$6\r\nfoobar\r\n");
+}
+
+#[test]
+fn respv2_serializer_null_bulk_string() {
+    let data = String::from("");
+    let result = data.serialize_bulk_to_respv2();
+
+    assert_eq!(result, "$0\r\n\r\n");
+}
+
+#[test]
+fn respv2_serializer_array() {
+    let data = vec![
+        Box::new(RESPv2Type::Bulk(String::from("foo"))),
+        Box::new(RESPv2Type::Bulk(String::from("bar"))),
+    ];
+    let result = data.serialize_to_respv2();
+
+    assert_eq!(result, "*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n");
+}
+
+#[test]
+fn respv2_serializer_null_array() {
+    let data = vec![];
+    let result = data.serialize_to_respv2();
+
+    assert_eq!(result, "*0\r\n");
 }
