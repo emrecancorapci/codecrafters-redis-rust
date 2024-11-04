@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use super::db::MemoryDatabase;
+use super::{cmd::{echo::cmd_echo, get::cmd_get, set::cmd_set}, db::MemoryDatabase};
 
 pub struct Redis;
 
@@ -57,83 +57,8 @@ impl Redis {
             }
             "echo" => cmd_echo(itr.next()),
             "set" => cmd_set(itr.next(), itr.next(), &db).await,
-            "get" => cmt_get(itr.next(), &db).await,
+            "get" => cmd_get(itr.next(), &db).await,
             _ => return Err(Error::new(ErrorKind::InvalidData, "Invalid command.")),
         }
-    }
-}
-
-async fn cmd_set(
-    key: Option<&Box<RESPv2Types>>,
-    value: Option<&Box<RESPv2Types>>,
-    db: &Arc<Mutex<impl MemoryDatabase>>,
-) -> Result<String, Error> {
-    if let (Some(key), Some(value)) = (key, value) {
-        if let (RESPv2Types::String(key), RESPv2Types::String(value)) =
-            (key.as_ref(), value.as_ref())
-        {
-            let mut db = db.lock().await;
-            let db = db.set(key, value);
-
-            if db.is_err() {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    db.unwrap_err().to_string(),
-                ));
-            }
-
-            return Ok("OK".serialize_to_respv2());
-        }
-    }
-
-    return Err(Error::new(
-        ErrorKind::InvalidData,
-        "SET command needs two arguments: SET [key] [value]",
-    ));
-}
-
-async fn cmt_get(
-    key: Option<&Box<RESPv2Types>>,
-    db: &Arc<Mutex<impl MemoryDatabase>>,
-) -> Result<String, Error> {
-    if key.is_none() {
-        return Err(Error::new(
-            ErrorKind::InvalidData,
-            "GET command needs another argument: GET [key]",
-        ));
-    }
-
-    if let RESPv2Types::String(key) = key.unwrap().as_ref() {
-        let db = db.lock().await;
-        let db = db.get(key);
-
-        if db.is_none() {
-            return Ok("$-1\r\n".to_string());
-        }
-
-        return Ok(db.unwrap().serialize_to_respv2());
-    } else {
-        return Err(Error::new(
-            ErrorKind::InvalidData,
-            "Wrong use of GET command.",
-        ));
-    }
-}
-
-fn cmd_echo(value: Option<&Box<RESPv2Types>>) -> Result<String, Error> {
-    if value.is_none() {
-        return Err(Error::new(
-            ErrorKind::InvalidData,
-            "ECHO command needs another argument: ECHO [message]",
-        ));
-    }
-
-    if let RESPv2Types::String(echo) = value.unwrap().as_ref() {
-        return Ok(echo.serialize_to_respv2());
-    } else {
-        return Err(Error::new(
-            ErrorKind::InvalidData,
-            "Wrong use of ECHO command.",
-        ));
     }
 }

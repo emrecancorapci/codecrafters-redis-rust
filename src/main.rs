@@ -1,18 +1,14 @@
 use redis::{db::MemoryDatabase, server::Redis};
+use std::{io::Error, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
     net::TcpStream,
     sync::Mutex,
 };
 
-use std::{io::Error, sync::Arc};
-
-pub mod respv2;
-mod redis {
-    pub mod db;
-    pub mod server;
-}
-pub mod mem_db;
+mod mem_db;
+mod redis;
+mod respv2;
 
 #[tokio::main]
 async fn main() {
