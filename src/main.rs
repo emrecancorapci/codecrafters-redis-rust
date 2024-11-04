@@ -1,28 +1,41 @@
-use bytes::BytesMut;
+use redis::{db::MemoryDatabase, server::Redis};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
-    net::{TcpListener, TcpStream},
+    net::TcpStream,
+    sync::Mutex,
 };
 
+use std::{io::Error, sync::Arc};
+
 pub mod respv2;
-pub mod server;
+mod redis {
+    pub mod db;
+    pub mod server;
+}
+pub mod mem_db;
 
 #[tokio::main]
 async fn main() {
-    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:6379")
+        .await
+        .unwrap();
     let thread_pool = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)
         .enable_all()
         .build()
         .unwrap();
+    let db = mem_db::MemDB::new();
+
+    let db = Arc::new(Mutex::new(db));
 
     loop {
         let (mut stream, ip) = listener.accept().await.unwrap();
 
         println!("Connection with: {}", ip);
+        let db = Arc::clone(&db);
 
         thread_pool.spawn(async move {
-            let result = handler(&mut stream).await;
+            let result = handler(&mut stream, db).await;
 
             if let Err(ref e) = result {
                 if e.kind() != std::io::ErrorKind::BrokenPipe {
@@ -38,18 +51,22 @@ async fn main() {
     }
 }
 
-async fn handler(stream: &mut TcpStream) -> Result<(), std::io::Error> {
+async fn handler<'a>(
+    stream: &mut TcpStream,
+    db: Arc<Mutex<impl MemoryDatabase>>,
+) -> Result<(), Error> {
     loop {
+        let db = Arc::clone(&db);
         let (read, mut write) = stream.split();
         let string = read_to_string(read).await?;
 
-        let response = server::Redis::handle(string).await?;
+        let response = Redis::handle(string, db).await?;
 
         write.write_all(response.as_bytes()).await?;
     }
 }
 
-async fn read_to_string(read: tokio::net::tcp::ReadHalf<'_>) -> Result<String, std::io::Error> {
+async fn read_to_string(read: tokio::net::tcp::ReadHalf<'_>) -> Result<String, Error> {
     let mut reader = BufReader::new(read);
     let mut buffer = [0; 1024];
 
