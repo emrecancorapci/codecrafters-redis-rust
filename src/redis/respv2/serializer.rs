@@ -1,4 +1,4 @@
-use super::RESPv2Types;
+use super::RESPv2Type;
 
 pub trait Serialize {
     fn serialize_to_respv2(&self) -> String;
@@ -84,7 +84,7 @@ impl SerializeBulk for u64 {
     }
 }
 
-impl Serialize for Vec<Box<RESPv2Types>> {
+impl Serialize for Vec<Box<RESPv2Type>> {
     fn serialize_to_respv2(&self) -> String {
         if self.len() == 0 {
             return String::from("*0\r\n");
@@ -102,15 +102,15 @@ impl Serialize for Vec<Box<RESPv2Types>> {
     }
 }
 
-impl Serialize for RESPv2Types {
+impl Serialize for RESPv2Type {
     fn serialize_to_respv2(&self) -> String {
         match self {
-            RESPv2Types::Number(num) => num.serialize_to_respv2(),
-            RESPv2Types::String(string) => string.serialize_to_respv2(),
-            RESPv2Types::Error(error) => error.serialize_error_to_respv2(),
-            RESPv2Types::Null => String::from("$-1\r\n"),
-            RESPv2Types::Bulk(bulk) => bulk.serialize_bulk_to_respv2(),
-            RESPv2Types::Array(array) => array.serialize_to_respv2(),
+            RESPv2Type::Number(num) => num.serialize_to_respv2(),
+            RESPv2Type::String(string) => string.serialize_to_respv2(),
+            RESPv2Type::Error(error) => error.serialize_error_to_respv2(),
+            RESPv2Type::Null => String::from("$-1\r\n"),
+            RESPv2Type::Bulk(bulk) => bulk.serialize_bulk_to_respv2(),
+            RESPv2Type::Array(array) => array.serialize_to_respv2(),
         }
     }
 }

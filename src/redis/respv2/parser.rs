@@ -1,23 +1,23 @@
-use super::{RESPv2Errors, RESPv2Types};
+use super::{RESPv2Error, RESPv2Type};
 
 pub trait Parser {
-    fn try_parse_to_respv2(&self) -> Result<RESPv2Types, RESPv2Errors>;
+    fn try_parse_to_respv2(&self) -> Result<RESPv2Type, RESPv2Error>;
 }
 
 impl Parser for &str {
-    fn try_parse_to_respv2(&self) -> Result<RESPv2Types, RESPv2Errors> {
+    fn try_parse_to_respv2(&self) -> Result<RESPv2Type, RESPv2Error> {
         RESPv2Parser::parse(self.to_string())
     }
 }
 
 impl Parser for String {
-    fn try_parse_to_respv2(&self) -> Result<RESPv2Types, RESPv2Errors> {
+    fn try_parse_to_respv2(&self) -> Result<RESPv2Type, RESPv2Error> {
         RESPv2Parser::parse(self.to_string())
     }
 }
 
 impl Parser for &String {
-    fn try_parse_to_respv2(&self) -> Result<RESPv2Types, RESPv2Errors> {
+    fn try_parse_to_respv2(&self) -> Result<RESPv2Type, RESPv2Error> {
         RESPv2Parser::parse(self.to_string())
     }
 }
@@ -25,12 +25,12 @@ impl Parser for &String {
 pub struct RESPv2Parser;
 
 impl RESPv2Parser {
-    pub fn parse(buffer: String) -> Result<RESPv2Types, RESPv2Errors> {
+    pub fn parse(buffer: String) -> Result<RESPv2Type, RESPv2Error> {
         let data = buffer.lines().collect::<Vec<&str>>();
         let mut iterator = data.iter();
 
         if data.len() == 0 || data[0].is_empty() {
-            return Err(RESPv2Errors::InvalidLength);
+            return Err(RESPv2Error::InvalidLength);
         }
 
         let mut first_line = iterator.next().unwrap().chars();
@@ -43,46 +43,46 @@ impl RESPv2Parser {
             ':' => Self::parse_integer(first_line.as_str()),
             '$' => {
                 if first_line.is_empty() {
-                    Err(RESPv2Errors::InvalidData)
+                    Err(RESPv2Error::InvalidData)
                 } else if first_line == "0" {
-                    Ok(RESPv2Types::String(String::from("")))
+                    Ok(RESPv2Type::String(String::from("")))
                 } else if first_line == "-1" {
-                    Ok(RESPv2Types::Null)
+                    Ok(RESPv2Type::Null)
                 } else {
                     Self::parse_string(iterator.next().unwrap())
                 }
             }
             '*' => {
                 if first_line.is_empty() || data.len() < 1 {
-                    Err(RESPv2Errors::InvalidData)
+                    Err(RESPv2Error::InvalidData)
                 } else if first_line == "0" {
-                    Ok(RESPv2Types::Array(vec![]))
+                    Ok(RESPv2Type::Array(vec![]))
                 } else if first_line == "-1" {
-                    Ok(RESPv2Types::Null)
+                    Ok(RESPv2Type::Null)
                 } else {
                     Self::parse_array(&mut iterator)
                 }
             }
-            _ => Err(RESPv2Errors::InvalidCommand),
+            _ => Err(RESPv2Error::InvalidCommand),
         }
     }
 
-    fn parse_string(data: &str) -> Result<RESPv2Types, RESPv2Errors> {
-        Ok(RESPv2Types::String(data.to_string()))
+    fn parse_string(data: &str) -> Result<RESPv2Type, RESPv2Error> {
+        Ok(RESPv2Type::String(data.to_string()))
     }
 
-    fn parse_integer(data: &str) -> Result<RESPv2Types, RESPv2Errors> {
+    fn parse_integer(data: &str) -> Result<RESPv2Type, RESPv2Error> {
         match data.parse::<u64>() {
-            Ok(num) => Ok(RESPv2Types::Number(num)),
-            Err(_) => Err(RESPv2Errors::InvalidType),
+            Ok(num) => Ok(RESPv2Type::Number(num)),
+            Err(_) => Err(RESPv2Error::InvalidType),
         }
     }
 
-    fn parse_array(iterator: &mut std::slice::Iter<'_, &str>) -> Result<RESPv2Types, RESPv2Errors> {
+    fn parse_array(iterator: &mut std::slice::Iter<'_, &str>) -> Result<RESPv2Type, RESPv2Error> {
         let mut error = false;
-        let mut error_type = RESPv2Errors::InvalidType;
+        let mut error_type = RESPv2Error::InvalidType;
 
-        let mut array: Vec<Box<RESPv2Types>> = vec![];
+        let mut array: Vec<Box<RESPv2Type>> = vec![];
 
         while let Some(line) = iterator.next() {
             if error {
@@ -96,7 +96,7 @@ impl RESPv2Parser {
 
             if num.is_empty() {
                 error = true;
-                error_type = RESPv2Errors::InvalidData;
+                error_type = RESPv2Error::InvalidData;
             }
 
             match operation {
@@ -116,9 +116,9 @@ impl RESPv2Parser {
                 },
                 '$' => {
                     if num == "0" {
-                        array.push(Box::new(RESPv2Types::String(String::from(""))));
+                        array.push(Box::new(RESPv2Type::String(String::from(""))));
                     } else if num == "-1" {
-                        array.push(Box::new(RESPv2Types::Null));
+                        array.push(Box::new(RESPv2Type::Null));
                     } else {
                         match Self::parse_string(iterator.next().unwrap()) {
                             Ok(data) => array.push(Box::new(data)),
@@ -131,9 +131,9 @@ impl RESPv2Parser {
                 }
                 '*' => {
                     if num == "0" {
-                        array.push(Box::new(RESPv2Types::Array(vec![])));
+                        array.push(Box::new(RESPv2Type::Array(vec![])));
                     } else if num == "-1" {
-                        array.push(Box::new(RESPv2Types::Null));
+                        array.push(Box::new(RESPv2Type::Null));
                     } else {
                         match Self::parse_array(iterator) {
                             Ok(data) => array.push(Box::new(data)),
@@ -146,7 +146,7 @@ impl RESPv2Parser {
                 }
                 _ => {
                     error = true;
-                    error_type = RESPv2Errors::InvalidCommand;
+                    error_type = RESPv2Error::InvalidCommand;
                 }
             }
         }
@@ -154,7 +154,7 @@ impl RESPv2Parser {
         if error {
             Err(error_type)
         } else {
-            Ok(RESPv2Types::Array(array))
+            Ok(RESPv2Type::Array(array))
         }
     }
 }

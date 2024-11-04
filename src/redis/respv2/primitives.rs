@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 #[derive(PartialEq, Eq, Debug)]
-pub enum RESPv2Types {
-    Array(Vec<Box<RESPv2Types>>),
+pub enum RESPv2Type {
+    Array(Vec<Box<RESPv2Type>>),
     Number(u64),
     String(String),
     Bulk(String),
@@ -10,20 +10,20 @@ pub enum RESPv2Types {
     Null,
 }
 
-pub enum RESPv2Errors {
+pub enum RESPv2Error {
     InvalidCommand,
     InvalidData,
     InvalidLength,
     InvalidType,
 }
 
-impl Debug for RESPv2Errors {
+impl Debug for RESPv2Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_string())
     }
 }
 
-impl ToString for RESPv2Errors {
+impl ToString for RESPv2Error {
     fn to_string(&self) -> String {
         match self {
             Self::InvalidCommand => String::from("InvalidCommand"),

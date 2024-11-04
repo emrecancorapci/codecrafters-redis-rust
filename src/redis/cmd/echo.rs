@@ -1,7 +1,7 @@
-use crate::respv2::{RESPv2Types, Serialize};
+use crate::redis::respv2::{RESPv2Type, Serialize};
 use std::io::{Error, ErrorKind};
 
-pub fn cmd_echo(value: Option<&Box<RESPv2Types>>) -> Result<String, Error> {
+pub fn cmd_echo(value: Option<&Box<RESPv2Type>>) -> Result<String, Error> {
     if value.is_none() {
         return Err(Error::new(
             ErrorKind::InvalidData,
@@ -9,7 +9,7 @@ pub fn cmd_echo(value: Option<&Box<RESPv2Types>>) -> Result<String, Error> {
         ));
     }
 
-    if let RESPv2Types::String(echo) = value.unwrap().as_ref() {
+    if let RESPv2Type::String(echo) = value.unwrap().as_ref() {
         return Ok(echo.serialize_to_respv2());
     } else {
         return Err(Error::new(

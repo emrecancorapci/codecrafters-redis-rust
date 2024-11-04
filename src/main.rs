@@ -8,7 +8,6 @@ use tokio::{
 
 mod mem_db;
 mod redis;
-mod respv2;
 
 #[tokio::main]
 async fn main() {

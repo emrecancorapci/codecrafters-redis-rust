@@ -1,6 +1,6 @@
-use crate::{
-    redis::db::MemoryDatabase,
-    respv2::{RESPv2Types, Serialize},
+use crate::redis::{
+    db::MemoryDatabase,
+    respv2::{RESPv2Type, Serialize},
 };
 use std::{
     io::{Error, ErrorKind},
@@ -9,7 +9,7 @@ use std::{
 use tokio::sync::Mutex;
 
 pub async fn cmd_get(
-    key: Option<&Box<RESPv2Types>>,
+    key: Option<&Box<RESPv2Type>>,
     db: &Arc<Mutex<impl MemoryDatabase>>,
 ) -> Result<String, Error> {
     if key.is_none() {
@@ -19,7 +19,7 @@ pub async fn cmd_get(
         ));
     }
 
-    if let RESPv2Types::String(key) = key.unwrap().as_ref() {
+    if let RESPv2Type::String(key) = key.unwrap().as_ref() {
         let db = db.lock().await;
         let db = db.get(key);
 

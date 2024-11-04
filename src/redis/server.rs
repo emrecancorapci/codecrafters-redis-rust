@@ -1,16 +1,17 @@
-use tokio::sync::Mutex;
+use super::{
+    cmd::{cmd_echo, cmd_get, cmd_set},
+    db::MemoryDatabase, respv2::{Parser, RESPv2Type, Serialize},
+};
 
-use crate::respv2::{Parser, RESPv2Types, Serialize};
 use std::{
     io::{Error, ErrorKind},
     sync::Arc,
 };
-
-use super::{cmd::{echo::cmd_echo, get::cmd_get, set::cmd_set}, db::MemoryDatabase};
+use tokio::sync::Mutex;
 
 pub struct Redis;
 
-type PeekableBoxes<'a> = std::iter::Peekable<std::slice::Iter<'a, Box<RESPv2Types>>>;
+type PeekableBoxes<'a> = std::iter::Peekable<std::slice::Iter<'a, Box<RESPv2Type>>>;
 
 impl Redis {
     pub async fn handle(
@@ -30,11 +31,11 @@ impl Redis {
             ));
         }
 
-        if let RESPv2Types::Array(vec) = parse_result.unwrap() {
+        if let RESPv2Type::Array(vec) = parse_result.unwrap() {
             let mut itr = vec.iter().peekable();
 
             while let Some(type_box) = itr.next() {
-                if let RESPv2Types::String(data) = type_box.as_ref() {
+                if let RESPv2Type::String(data) = type_box.as_ref() {
                     return Self::command_handler(data, &mut itr, db).await;
                 }
             }
